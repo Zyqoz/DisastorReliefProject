@@ -1,0 +1,436 @@
+---
+title: "Disaster Relief Project: Part 1"
+author: "Part 1"
+# date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output:
+  html_document:
+    toc: no
+    toc_depth: 2
+    toc_float: yes
+#  pdf_document:
+#    toc: no
+# You can make the format personal - this will get you started:  
+# https://bookdown.org/yihui/rmarkdown/html-document.html#appearance_and_style    
+---
+
+<!--- Below are global settings for knitr. You can override any of them by adding the changes to individual chunks --->
+
+==
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
+                      collapse=FALSE,    # collapse by default
+                      echo=TRUE,         # echo code by default
+                      comment = "#>",    # change comment character
+                      fig.width = 5.5,     # set figure width
+                      fig.align = "center",# set figure position
+                      out.width = "49%", # set width of displayed images
+                      warning=TRUE,      # show R warnings
+                      message=TRUE)      # show R messages
+```
+
+<!--- Change font sizes (or other css modifications) --->
+
+```{=html}
+<style>
+h1.title { font-size: 2.2em; }
+h1 { font-size: 2em; }
+h2 { font-size: 1.5em; }
+h3 { font-size: 1.2em; }
+pre { font-size: 0.8em; }
+</style>
+```
+**DS 6030 \| Spring 2023 \| University of Virginia**
+
+------------------------------------------------------------------------
+
+In this project, you will use classification methods covered in this course to solve a real historical data-mining problem: locating displaced persons living in makeshift shelters following the destruction of the earthquake in Haiti in 2010.
+
+Following that earthquake, rescue workers, mostly from the United States military, needed to get food and water to the displaced persons. But with destroyed communications, impassable roads, and thousands of square miles, actually locating the people who needed help was challenging.
+
+As part of the rescue effort, a team from the Rochester Institute of Technology were flying an aircraft to collect high resolution geo-referenced imagery. It was known that the people whose homes had been destroyed by the earthquake were creating temporary shelters using blue tarps, and these blue tarps would be good indicators of where the displaced persons were -- if only they could be located in time, out of the thousands of images that would be collected every day. The problem was that there was no way for aid workers to search the thousands of images in time to find the tarps and communicate the locations back to the rescue workers on the ground in time. The solution would be provided by data-mining algorithms, which could search the images far faster and more thoroughly (and accurately?) then humanly possible. The goal was to find an algorithm that could effectively search the images in order to locate displaced persons and communicate those locations rescue workers so they could help those who needed it in time.
+
+This disaster relief project is the subject matter for your project in this course, which you will submit in two parts. You will use data from the actual data collection process was carried out over Haiti. Your goal is to test each of the algorithms you learn in this course on the imagery data collected during the relief efforts made Haiti in response to the 2010 earthquake, and determine which method you will use to as accurately as possible, and in as timely a manner as possible, locate as many of the displaced persons identified in the imagery data so that they can be provided food and water before their situations become unsurvivable.
+
+You will document the performance of several models using cross-validation (Part I) and a hold-out testing set (Part II). In **Module 6** you will submit the results for Part I that includes performance of the models we have covered in Modules 1-5. In **Module 12** you will submit the results for Part II that includes performance of a few other models, overall conclusions, and recommendations on the preferred model for this application.
+
+## Submission Format
+
+You will submit **both an Rmarkdown (.Rmd) and compiled .pdf document**. <!-- A template Rmarkdown file will be provided. The template is a suggestion to get you started.
+You are completely free to modify the format; don’t let it constrain your creativity. Also, the requirements list below are minimum requirements, you can provide more than what is asked (e.g., interactive shiny app). -->
+
+## Collaboration and Help
+
+-   While all work must be your own, you are permitted to discuss this project with classmates and post questions and answers on the discussion boards (e.g., slack).
+    -   However, you are **not** permitted to work collaboratively.
+-   You are not permitted to copy code. You will no doubt come across examples on the internet. You can consult them to help understand the concept or process, but *code in your own words*.
+-   It is a scholarly responsibility to attribute all your work. This includes figures, code, ideas, etc. Think of it this way: will someone who reads your submission think that it is your original idea, figure, code, etc? Add a link and/or reference to all sources you used to solve a problem. It is really of no value to you when you just copy someone else's solutions (other then preserve a grade that you didn't earn). It is not always easy to tell what qualifies as an honor code violation, so do not be afraid to talk to me about it. Such discussions do not imply guilt of any kind.
+
+# Project Part I (100 points) DUE in Module 6
+
+Use 10-fold cross-validation to evaluate the performance of 5 models:
+
+-   Logistic Regression
+-   LDA (Linear Discriminant Analysis)
+-   QDA (Quadratic Discriminant Analysis)
+-   KNN (K-nearest neighbor)
+-   Penalized Logistic Regression (elastic net penalty)
+
+Use the `HaitiPixels.csv` data (provided in Module 3).
+
+## Document Format (5pts)
+
+Compiled document well structured and easy to read:
+
+-   organized well
+    -   the provided template should satisfy the minimal requirements
+    -   (optional) make it better (e.g., used tabbed sections, custom css, different themes)
+-   tables/plots fit on the page
+-   there are not extraneous outputs (e.g., printing a matrix that fills 2 pages)
+-   plots are labeled correctly
+-   etc.
+
+## Coding (5 pts)
+
+All code is shown and executes without errors. The R code in the code chunks should be visible and easy to follow. Use `echo = TRUE` for all chunks that were actually used (e.g., personal notes to yourself or preliminary coding attempts shouldn't be shown).
+
+-   Alternatively, you can show all of the code you used at the end of the document in an appendix.
+
+We will **only** inspect your .Rmd file if there are problems in compiling your document so ensure we can understand what you implemented from the compiled document.
+
+## Data Wrangling and EDA (10 pts)
+
+Data loaded correctly and exploratory data anlysis (EDA) is performed to better understand the data
+
+## Model Fitting, Tuning Parameter Selection, and Evaluation (30 pts)
+
+-   Overall model building process well defined and *explained*.
+    -   describe and justify parameter tuning and model selection (if applicable)
+    -   describe and justify model validation
+    -   describe and justify threshold selection
+        -   It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).
+    -   describe and justify metrics used for model performance evaluation
+        -   use ROC curves to compare models
+    -   It should be clear what features were used for each model family.
+        -   E.g., by using a formula or explicit calculation of model matrix.
+    -   It should be clear if any pre-processing was used (e.g., scaling).
+    -   It should be clear how cross-validation was implemented.
+-   For each of the 5 models,
+    -   describe and show parameter tuning and discuss results (use tables and/or plots)
+    -   describe and show results of threshold selection
+    -   describe and discuss model performance
+        -   use ROC curves and relevant metrics; how are they derived
+
+## Performance Table (20 pts)
+
+Model performance summarized in one or more tables. Expected information shown:
+
+-   Optimal model tuning parameters
+
+-   AUC
+
+-   Selected threshold
+
+-   Accuracy, TPR, FPR, Precision calculated at selected threshold
+
+-   Describe how the metrics were calculated under the cross-validation framework.
+
+    -   E.g., is it an average, a sum, a max, etc.
+
+## Conclusions (30 pts)
+
+Report on at least 3 conclusions. This section is more important than the previous sections (as reflected in the points). Give sufficient explanation and justification for each conclusion.
+
+-   One must be your **determination and justification of which algorithm works best**
+-   Additional conclusions should be observations you've made based on your work on this project, such as:
+    -   Examples:
+
+        -   What additional recommend actions can be taken to improve results?
+        -   Were there multiple adequately performing methods, or just one clear best method? What is your level of confidence in the results?
+        -   What is it about this data formulation that allows us to address it with predictive modeling tools?
+        -   How effective do you think your work here could actually be in terms of helping to save human life?
+        -   Do these data seem particularly well-suited to one class of prediction methods, and if so, why?
+
+    -   These are only suggestions, pursue your own interests.
+
+    -   Your *best two additional* conclusions will be graded.
+
+# Project
+
+## Data Wrangling and Exploratory Data Analysis
+
+```{r}
+
+data <- read.csv('HaitiPixels.csv')
+data <- na.omit(data)
+library(ggplot2)
+library(dplyr)
+install.packages("glmnet")
+```
+
+```{r}
+
+#Box plots
+ggplot(data, aes(x = Class, y = Red)) + geom_boxplot()
+ggplot(data, aes(x = Class, y = Blue)) + geom_boxplot()
+ggplot(data, aes(x = Class, y = Green)) + geom_boxplot()
+
+
+```
+
+Pixels that are classified as Blue Tarp have a median of about 170 red, 180 green, and 220 blue channel values. Furthermore, the distribution of blue channel values for Blue tarp is higher than red or green channel values for Blue Tarp as it should be expected. This means that when looking at images of Blue Tarps, we should expect to see more blue channel values in the area of the Blue Tarp.
+
+```{r}
+ggplot(data, aes(x = Class)) + 
+  geom_bar() +
+  labs(y = "Count")
+
+
+```
+
+Most of this data set has pixels that are classified as Vegetation followed by Soil. The class with the least pixels is the Blue Tarp class. This means that for this image, only a small portion of the image has a tarp visible.
+
+```{r}
+
+library(tidyverse)
+
+# Create a new dataframe with the percentages of each color for each class
+data_perc <- data %>% 
+  group_by(Class) %>% 
+  summarise(Red = mean(Red),
+            Blue = mean(Blue),
+            Green = mean(Green))
+
+# Reshape the data to long format
+data_long <- data_perc %>% 
+  pivot_longer(cols = Red:Green, names_to = "Color", values_to = "Percentage")
+
+# Create a named vector of colors
+color_vector <- c("Red" = "red", "Blue" = "blue", "Green" = "green")
+
+# Create a stacked bar plot for each class
+ggplot(data_long, aes(x = Class, y = Percentage, fill = Color)) +
+  geom_bar(position = "fill", stat = "identity") +
+  scale_fill_manual(values = color_vector) +
+  labs(x = "Class", y = "Proportion", fill = "Color") +
+  theme_bw()
+```
+
+This visualization shows the average color channel values for each class. From this, we can see that the Blue Tarp class has the greatest percentage of blue-channel values. This may be of use when we are trying to determine if some pixels contain a blue tarp, as those pixels with the highest blue channel values will likely be Blue Tarps.
+
+## Logistic Regression
+
+-   **Overall model building process:**
+    -   **Parameter tuning and model selection (if applicable)**
+
+        There was no parameter tuning and model selection for logistic regression.
+
+    -   **Model validation**
+
+        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
+
+    -   **describe and justify threshold selection**
+
+        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+
+    -   **describe and justify metrics used for model performance evaluation**
+
+        -   **use ROC curves to compare models**
+
+    -   **It should be clear what features were used for each model family.**
+
+        -   **E.g., by using a formula or explicit calculation of model matrix.**
+
+    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+
+    -   **It should be clear how cross-validation was implemented.**
+-   **For each of the 5 models,**
+    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
+    -   **describe and show results of threshold selection**
+    -   **describe and discuss model performance**
+        -   **use ROC curves and relevant metrics; how are they derived**
+
+The data is modified so that logistic regression can be applied on it with a new column called Blue Tarp which is equal to "Yes" if the pixel was classified as a Blue Tarp and "No" if it was not. A general logistic regression model with the output being the newly created column is fitted. The cross-validation is set so that 80% of the data is used for training and 20% is for the hold out testing. Then the cross validation approach is used with multiple seeds and trials to see if there is overfitting in the data or not. Model parameters are printed. There is a loop done to see which threshold value gives the best accuracy and the results of the different threshold values is plotted with an ROC curve.
+
+```{r}
+
+library(caret)
+library(ggplot2)
+
+#Modify the data to add a new column for Blue Tarp
+
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
+
+library(caret)
+
+set.seed(123)
+
+# Create cross-validation folds
+folds <- createFolds(data$Blue_Tarp, k = 5)
+
+# Define cross-validation control
+ctrl <- trainControl(method = "cv", index = folds)
+
+# Train model with cross-validation
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "glm",
+               family = binomial(link = "logit"), trControl = ctrl)
+
+# Print model results
+print(model)
+
+
+#Check for overfitting
+model$results
+
+```
+
+## LDA (Linear Discriminant Analysis)
+
+```{r}
+
+library(caret)
+library(ggplot2)
+
+# Modify the data to add a new column for Blue Tarp
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
+
+set.seed(123)
+
+# Create cross-validation folds
+folds <- createFolds(data$Blue_Tarp, k = 5)
+
+# Define cross-validation control
+ctrl <- trainControl(method = "cv", index = folds)
+
+# Train model with cross-validation using LDA
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "lda",
+               trControl = ctrl)
+
+# Print model results
+print(model)
+
+# Check for overfitting
+model$results
+
+```
+
+## QDA (Quadratic Discriminant Analysis)
+
+```{r}
+
+library(caret)
+library(ggplot2)
+
+# Modify the data to add a new column for Blue Tarp
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
+
+set.seed(123)
+
+# Create cross-validation folds
+folds <- createFolds(data$Blue_Tarp, k = 5)
+
+# Define cross-validation control
+ctrl <- trainControl(method = "cv", index = folds)
+
+# Train model with cross-validation using LDA
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "qda",
+               trControl = ctrl)
+
+# Print model results
+print(model)
+
+# Check for overfitting
+model$results
+
+```
+
+## KNN (K-nearest neighbor)
+
+```{r, echo = True, cache = True}
+
+library(caret)
+library(ggplot2)
+
+# Modify the data to add a new column for Blue Tarp
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
+
+set.seed(123)
+
+# Create cross-validation folds
+folds <- createFolds(data$Blue_Tarp, k = 5)
+
+# Define cross-validation control
+ctrl <- trainControl(method = "cv", index = folds)
+
+# Define hyperparameter grid
+k_values <- seq(1, 5, by = 1)
+tune_grid <- expand.grid(k = k_values)
+
+# Train model with cross-validation using KNN
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "knn",
+               tuneGrid = tune_grid, trControl = ctrl)
+
+# Plot results
+ggplot(data = model$results, aes(x = k, y = Accuracy)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "k", y = "Accuracy")
+
+
+```
+
+## Penalized Logistic Regression (elastic net penalty)
+
+```{r}
+
+#Define the grid of tuning parameters to explore
+library(glmnet)
+lambdas <- c(0.1, 1, 10)  # note logarithmic scale
+
+tuneGrid <- expand.grid(alpha=1, # select L1 regularization (Lasso)
+                        lambda=lambdas)
+
+trControl <- caret::trainControl(method='cv', number=10, allowParallel=TRUE)
+
+modelFit <- train(Blue_Tarp ~ ., 
+                  data= data, 
+                  method='glmnet', 
+                  trControl=trControl, 
+                  tuneGrid=tuneGrid)
+
+modelFit
+```
+
+Ridge regression
+
+```{r}
+
+library(glmnet)
+lambdas <- c(0.1, 1, 10)  # note logarithmic scale
+
+tuneGrid <- expand.grid(alpha=0, # select L2 regularization (Ridge)
+                        lambda=lambdas)
+
+trControl <- caret::trainControl(method='cv', number=10, allowParallel=TRUE)
+
+modelFit <- train(Blue_Tarp ~ ., 
+                  data= data, 
+                  method='glmnet', 
+                  trControl=trControl, 
+                  tuneGrid=tuneGrid)
+modelFit
+```
+
+```{r}
+
+showTuningResults <- function(model) {
+  results = model$results
+  bestResults = results %>% slice_min(RMSE, n=1)
+  
+  ggplot(model) + 
+    geom_ribbon(data=results, aes(x=lambda, ymin=RMSE-RMSESD, ymax=RMSE+RMSESD), color='grey', alpha=.2) +
+    geom_point(data=bestResults, color='red', size=2.5) +
+    scale_x_log10()
+}
+showTuningResults(modelFit)
+```
