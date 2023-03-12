@@ -171,11 +171,18 @@ install.packages("glmnet")
 ```{r}
 
 #Box plots
-ggplot(data, aes(x = Class, y = Red)) + geom_boxplot()
-ggplot(data, aes(x = Class, y = Blue)) + geom_boxplot()
-ggplot(data, aes(x = Class, y = Green)) + geom_boxplot()
-
-
+ggplot(data, aes(x = Class, y = Red))+
+  geom_boxplot()+
+  ggtitle("Boxplot of Class and Red color")+
+  theme(plot.title = element_text(hjust = 0.5))
+ggplot(data, aes(x = Class, y = Blue))+
+  geom_boxplot()+
+  ggtitle("Boxplot of Class and Blue color")+
+  theme(plot.title = element_text(hjust = 0.5))
+ggplot(data, aes(x = Class, y = Green))+
+  geom_boxplot()+
+  ggtitle("Boxplot of Class and Green color")+
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 Pixels that are classified as Blue Tarp have a median of about 170 red, 180 green, and 220 blue channel values. Furthermore, the distribution of blue channel values for Blue tarp is higher than red or green channel values for Blue Tarp as it should be expected. This means that when looking at images of Blue Tarps, we should expect to see more blue channel values in the area of the Blue Tarp.
@@ -183,7 +190,9 @@ Pixels that are classified as Blue Tarp have a median of about 170 red, 180 gree
 ```{r}
 ggplot(data, aes(x = Class)) + 
   geom_bar() +
-  labs(y = "Count")
+  labs(y = "Count")+
+  ggtitle("Count of Each Class in the Entire Dataset")+
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 ```
@@ -213,7 +222,9 @@ ggplot(data_long, aes(x = Class, y = Percentage, fill = Color)) +
   geom_bar(position = "fill", stat = "identity") +
   scale_fill_manual(values = color_vector) +
   labs(x = "Class", y = "Proportion", fill = "Color") +
-  theme_bw()
+  theme_bw()+
+  ggtitle("Proportion of Color for Each Class")+
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 This visualization shows the average color channel values for each class. From this, we can see that the Blue Tarp class has the greatest percentage of blue-channel values. This may be of use when we are trying to determine if some pixels contain a blue tarp, as those pixels with the highest blue channel values will likely be Blue Tarps.
@@ -227,7 +238,7 @@ This visualization shows the average color channel values for each class. From t
 
     -   **Model validation**
 
-        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
+        The logistic regression model had cross validation performed on it with 10 splits of the training data.
 
     -   **describe and justify threshold selection**
 
@@ -254,37 +265,98 @@ The data is modified so that logistic regression can be applied on it with a new
 
 ```{r}
 
+#Fit a logistic regression model and do cv on it to see if it overfitting or not.
 library(caret)
 library(ggplot2)
 
+#Splitting data for a training set and a holdout set
+train.index <- sample(1:nrow(data), 0.8*nrow(data), replace = FALSE)
+train.data <- data[train.index, ]
+test.data <- data[-train.index, ]
+
 #Modify the data to add a new column for Blue Tarp
 
-data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", 1, 0))
 
-library(caret)
-
+#Set a seed
 set.seed(123)
 
-# Create cross-validation folds
-folds <- createFolds(data$Blue_Tarp, k = 5)
-
 # Define cross-validation control
-ctrl <- trainControl(method = "cv", index = folds)
+ctrl <- trainControl(method = "cv", number = 10, returnResamp = "all")
 
 # Train model with cross-validation
-model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "glm",
-               family = binomial(link = "logit"), trControl = ctrl)
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = train.data, method = "glm",
+               family = binomial(link = "logit"), trControl = ctrl, metric = "Accuracy")
 
 # Print model results
-print(model)
+print(model$finalModel)
 
 
 #Check for overfitting
 model$results
 
+predicted_probabilities <- predict(model, newdata = test.data, type = "prob")
+predicted_outcomes <- ifelse(predicted_probabilities > 0.5, 1, 0)
+
+accuracies <- model$resample$Accuracy
+accuracies
+
+# Plot the accuracies
+plot(x = 1:length(accuracies), y = accuracies, type = "o",
+     xlab = "Iteration", ylab = "Accuracy", main = "Model Accuracy")
+
+# Add a horizontal line for the mean accuracy
+abline(h = mean(accuracies), col = "red", lty = 2)
+
+
+# Create a bar chart of the accuracies
+barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
+
+meanAccuracy <- mean(accuracies)
+cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
+
+
+```
+
+When plotting the accuracy of the model over each cross-validation fold, we see that the accuracy does not change significantly. This means that the model has not been over fit to any specific fold. The mean accuracy over all the folds was 99.5%.
+
+```{r}
+
+actual_outcomes <- test.data$Blue_Tarp
+confusion_matrix <- confusionMatrix(predicted_outcomes, actual_outcomes)
+roc_prediction <- prediction(predicted_probabilities, actual_outcomes)
+roc_performance <- performance(roc_prediction, "tpr", "fpr")
 ```
 
 ## LDA (Linear Discriminant Analysis)
+
+-   **Overall model building process:**
+    -   **Parameter tuning and model selection (if applicable)**
+
+        There was no parameter tuning and model selection for LDA.
+
+    -   **Model validation**
+
+    -   **describe and justify threshold selection**
+
+        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+
+    -   **describe and justify metrics used for model performance evaluation**
+
+        -   **use ROC curves to compare models**
+
+    -   **It should be clear what features were used for each model family.**
+
+        -   **E.g., by using a formula or explicit calculation of model matrix.**
+
+    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+
+    -   **It should be clear how cross-validation was implemented.**
+-   **For each of the 5 models,**
+    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
+    -   **describe and show results of threshold selection**
+    -   **describe and discuss model performance**
+        -   **use ROC curves and relevant metrics; how are they derived**
 
 ```{r}
 
@@ -316,6 +388,36 @@ model$results
 
 ## QDA (Quadratic Discriminant Analysis)
 
+-   **Overall model building process:**
+    -   **Parameter tuning and model selection (if applicable)**
+
+        There was no parameter tuning and model selection for logistic regression.
+
+    -   **Model validation**
+
+        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
+
+    -   **describe and justify threshold selection**
+
+        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+
+    -   **describe and justify metrics used for model performance evaluation**
+
+        -   **use ROC curves to compare models**
+
+    -   **It should be clear what features were used for each model family.**
+
+        -   **E.g., by using a formula or explicit calculation of model matrix.**
+
+    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+
+    -   **It should be clear how cross-validation was implemented.**
+-   **For each of the 5 models,**
+    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
+    -   **describe and show results of threshold selection**
+    -   **describe and discuss model performance**
+        -   **use ROC curves and relevant metrics; how are they derived**
+
 ```{r}
 
 library(caret)
@@ -345,6 +447,36 @@ model$results
 ```
 
 ## KNN (K-nearest neighbor)
+
+-   **Overall model building process:**
+    -   **Parameter tuning and model selection (if applicable)**
+
+        There was no parameter tuning and model selection for logistic regression.
+
+    -   **Model validation**
+
+        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
+
+    -   **describe and justify threshold selection**
+
+        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+
+    -   **describe and justify metrics used for model performance evaluation**
+
+        -   **use ROC curves to compare models**
+
+    -   **It should be clear what features were used for each model family.**
+
+        -   **E.g., by using a formula or explicit calculation of model matrix.**
+
+    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+
+    -   **It should be clear how cross-validation was implemented.**
+-   **For each of the 5 models,**
+    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
+    -   **describe and show results of threshold selection**
+    -   **describe and discuss model performance**
+        -   **use ROC curves and relevant metrics; how are they derived**
 
 ```{r, echo = True, cache = True}
 
@@ -380,6 +512,36 @@ ggplot(data = model$results, aes(x = k, y = Accuracy)) +
 ```
 
 ## Penalized Logistic Regression (elastic net penalty)
+
+-   **Overall model building process:**
+    -   **Parameter tuning and model selection (if applicable)**
+
+        There was no parameter tuning and model selection for logistic regression.
+
+    -   **Model validation**
+
+        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
+
+    -   **describe and justify threshold selection**
+
+        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+
+    -   **describe and justify metrics used for model performance evaluation**
+
+        -   **use ROC curves to compare models**
+
+    -   **It should be clear what features were used for each model family.**
+
+        -   **E.g., by using a formula or explicit calculation of model matrix.**
+
+    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+
+    -   **It should be clear how cross-validation was implemented.**
+-   **For each of the 5 models,**
+    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
+    -   **describe and show results of threshold selection**
+    -   **describe and discuss model performance**
+        -   **use ROC curves and relevant metrics; how are they derived**
 
 ```{r}
 
