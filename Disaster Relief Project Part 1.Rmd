@@ -1,16 +1,12 @@
 ---
-title: "Disaster Relief Project: Part 1"
+title: 'Disaster Relief Project: Part 1'
 author: "Part 1"
-# date: "`r format(Sys.Date(), '%b %d, %Y')`"
 output:
   html_document:
     toc: no
-    toc_depth: 2
-    toc_float: yes
-#  pdf_document:
-#    toc: no
-# You can make the format personal - this will get you started:  
-# https://bookdown.org/yihui/rmarkdown/html-document.html#appearance_and_style    
+    df_print: paged
+  pdf_document:
+    toc: no
 ---
 
 <!--- Below are global settings for knitr. You can override any of them by adding the changes to individual chunks --->
@@ -157,18 +153,24 @@ Report on at least 3 conclusions. This section is more important than the previo
 
 # Project
 
+#### Downloading libraries
+
+```{r, cache = TRUE, echo = TRUE}
+library(caret)
+library(ROCR)
+library(tidyverse)
+```
+
 ## Data Wrangling and Exploratory Data Analysis
 
-```{r}
+```{r, cache = TRUE, echo = TRUE}
 
 data <- read.csv('HaitiPixels.csv')
 data <- na.omit(data)
-library(ggplot2)
-library(dplyr)
 install.packages("glmnet")
 ```
 
-```{r}
+```{r, cache = TRUE, echo = TRUE}
 
 #Box plots
 ggplot(data, aes(x = Class, y = Red))+
@@ -187,7 +189,7 @@ ggplot(data, aes(x = Class, y = Green))+
 
 Pixels that are classified as Blue Tarp have a median of about 170 red, 180 green, and 220 blue channel values. Furthermore, the distribution of blue channel values for Blue tarp is higher than red or green channel values for Blue Tarp as it should be expected. This means that when looking at images of Blue Tarps, we should expect to see more blue channel values in the area of the Blue Tarp.
 
-```{r}
+```{r, cache = TRUE, echo = TRUE}
 ggplot(data, aes(x = Class)) + 
   geom_bar() +
   labs(y = "Count")+
@@ -199,9 +201,7 @@ ggplot(data, aes(x = Class)) +
 
 Most of this data set has pixels that are classified as Vegetation followed by Soil. The class with the least pixels is the Blue Tarp class. This means that for this image, only a small portion of the image has a tarp visible.
 
-```{r}
-
-library(tidyverse)
+```{r, cache = TRUE, echo = TRUE}
 
 # Create a new dataframe with the percentages of each color for each class
 data_perc <- data %>% 
@@ -231,52 +231,22 @@ This visualization shows the average color channel values for each class. From t
 
 ## Logistic Regression
 
--   **Overall model building process:**
-    -   **Parameter tuning and model selection (if applicable)**
+The data is modified so that logistic regression can be applied on it with a new column called Blue Tarp which is equal to "Yes" if the pixel was classified as a Blue Tarp and "No" if it was not. A general logistic regression model with the output being the newly created column is fitted. The training split is done so that 80% of the data is used for training and 20% is for the hold out testing. Then the cross validation approach is used to see if there is over fitting in the data or not with 10 folds. Model parameters are printed. There is a loop done to see which threshold value gives the best accuracy. The threshold is applied to the estimated probabilities. The ROC curve is plotted and the AUC value is calculated and these metrics are used for model evaluation along with the mean accuracy of the model over all cross validation folds, and max accuracy calculated on the hold-out set. No pre-processing was done and the predictors were Red, Blue, and Green. The precision value, TRUE-positive rate, and false-positive rate is also presented. All the model metrics are presented in a single data frame at the end.
 
-        There was no parameter tuning and model selection for logistic regression.
+#### Training and Cross-Validation
 
-    -   **Model validation**
-
-        The logistic regression model had cross validation performed on it with 10 splits of the training data.
-
-    -   **describe and justify threshold selection**
-
-        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
-
-    -   **describe and justify metrics used for model performance evaluation**
-
-        -   **use ROC curves to compare models**
-
-    -   **It should be clear what features were used for each model family.**
-
-        -   **E.g., by using a formula or explicit calculation of model matrix.**
-
-    -   **It should be clear if any pre-processing was used (e.g., scaling).**
-
-    -   **It should be clear how cross-validation was implemented.**
--   **For each of the 5 models,**
-    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
-    -   **describe and show results of threshold selection**
-    -   **describe and discuss model performance**
-        -   **use ROC curves and relevant metrics; how are they derived**
-
-The data is modified so that logistic regression can be applied on it with a new column called Blue Tarp which is equal to "Yes" if the pixel was classified as a Blue Tarp and "No" if it was not. A general logistic regression model with the output being the newly created column is fitted. The cross-validation is set so that 80% of the data is used for training and 20% is for the hold out testing. Then the cross validation approach is used with multiple seeds and trials to see if there is overfitting in the data or not. Model parameters are printed. There is a loop done to see which threshold value gives the best accuracy and the results of the different threshold values is plotted with an ROC curve.
-
-```{r}
+```{r, cache = TRUE, echo = TRUE}
 
 #Fit a logistic regression model and do cv on it to see if it overfitting or not.
-library(caret)
-library(ggplot2)
+
+#Modify the data to add a new column for Blue Tarp
+
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", 1, 0))
 
 #Splitting data for a training set and a holdout set
 train.index <- sample(1:nrow(data), 0.8*nrow(data), replace = FALSE)
 train.data <- data[train.index, ]
 test.data <- data[-train.index, ]
-
-#Modify the data to add a new column for Blue Tarp
-
-data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", 1, 0))
 
 #Set a seed
 set.seed(123)
@@ -291,23 +261,139 @@ model <- train(Blue_Tarp ~ Red + Blue + Green, data = train.data, method = "glm"
 # Print model results
 print(model$finalModel)
 
+accuracies <- model$resample$Accuracy
 
-#Check for overfitting
-model$results
+# Create a bar chart of the accuracies
+barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
 
-predicted_probabilities <- predict(model, newdata = test.data, type = "prob")
-predicted_outcomes <- ifelse(predicted_probabilities > 0.5, 1, 0)
+meanAccuracy <- mean(accuracies)
+cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
+
+```
+
+------------------------------------------------------------------------
+
+**Comment:** When plotting the accuracy of the model over each cross-validation fold, we see that the accuracy does not change significantly. This means that the model has not been over fit to any specific fold. The mean accuracy over all the folds was 99.5%.
+
+#### ROC Curve
+
+```{r, cache = TRUE, echo = TRUE}
+
+preds <- predict(model$finalModel, newdata = test.data, type="response")
+
+rates <- prediction(preds, test.data$Blue_Tarp)
+
+
+roc_result <- performance(rates, measure = "tpr", x.measure = "fpr")
+
+plot(roc_result, main="ROC Curve for Blue Tarp Classification")
+lines(x = c(0,1), y = c(0,1), col="red")
+```
+
+**Comment:** Since the ROC curve for this model is far above the diagonal line, this means the model performs much better than random guessing and is thus a useful model.
+
+#### AUC Value
+
+```{r, cache = TRUE, echo = TRUE}
+
+auc <- performance(rates, measure = "auc")
+
+aucValue <- as.numeric(auc@y.values[1])
+
+cat("AUC:", aucValue, "\n")
+
+```
+
+**Comment:** Since the AUC of this model is 0.999 and is much greater than 0.5, this model performs much better than random guessing.
+
+#### Confusion Matrix
+
+```{r, cache = TRUE, echo = TRUE}
+
+modelAccuracies <- numeric(length = 11)
+
+for (x in seq(0, 1, 0.1)) {
+	
+	# Convert the predictions to binary classes
+	predictions_class <- ifelse(preds > x, 1, 0)
+	
+	# Create the confusion matrix
+	
+	Actual <- test.data$Blue_Tarp
+	Predicted <- predictions_class
+	
+  cm <- table(Predicted, Actual)
+  modelAccuracies[10 * x + 1] <- sum(diag(cm))/sum(cm)
+}
+
+plot(modelAccuracies, main = "Model Accuracies at Different Thresholds", xlab = "Threshold Value", ylab = "Accuracy")
+
+max_idx <- which.max(modelAccuracies)
+bestThresholdValue <- (max_idx - 1) / 10
+```
+
+**Comment:** Threshold selection was done on the model with increments of 0.1 going from 0 to 1. The highest accuracy was obtained with a threshold value of 0.3 at an accuracy of 0.995. Threshold selection was applied to the estimated probabilities.
+
+#### Confusion Matrix and Best Threshold Metrics
+
+```{r, cache = TRUE, echo = TRUE}
+
+print("Confusion matrix at best threshold value")
+cm <- table(test.data$Blue_Tarp, preds > bestThresholdValue)
+cm
+# Calculate accuracy
+accuracy <- sum(diag(cm))/sum(cm)
+# Calculate error rate
+error_rate <- 1 - accuracy
+
+# Extract the TRUE positives (TP), false positives (FP), TRUE negatives (TN), and false negatives (FN) from the confusion matrix
+TP <- cm[2,2]
+FP <- cm[1,2]
+TN <- cm[1,1]
+FN <- cm[2,1]
+
+# Calculate the TRUE positive rate (TPR)
+TPR <- TP / (TP + FN)
+
+# Calculate the false positive rate (FPR)
+FPR <- FP / (FP + TN)
+
+# Calculate precision
+precision <- TP / (TP + FP)
+
+#Putting TPR,FPR, aucValue, bestThresholdValue, precision, and accuracy into a dataframe
+
+logResults <- data.frame(
+  TPR = TPR,
+  FPR = FPR,
+  AUC = aucValue,
+  Best_Threshold_Value = bestThresholdValue,
+  Precision = precision,
+  Max_Accuracy = accuracy,
+  Mean_Accuracy = meanAccuracy
+)
+
+print(t(logResults))
+```
+
+## LDA (Linear Discriminant Analysis)
+
+A general linear discriminant analysis model with the response variable being the Blue_Tarp created column is fitted. The training split is done so that 80% of the data is used for training and 20% is for the hold out testing. Then the cross validation approach is used to see if there is over fitting in the data or not with 10 folds. Model parameters are printed. There is a loop done to see which threshold value gives the best accuracy. The threshold is applied to the estimated probabilities. The ROC curve is plotted and the AUC value is calculated and these metrics are used for model evaluation along with the mean accuracy of the model over all cross validation folds, and max accuracy calculated on the hold-out set. No pre-processing was done and the predictors were Red, Blue, and Green. The precision value, TRUE-positive rate, and false-positive rate is also presented. All the model metrics are presented in a single data frame at the end.
+
+### Training and Performing Cross-validation
+
+```{r, cache = TRUE, echo = TRUE}
+
+# Define cross-validation control
+ctrl <- trainControl(method = "cv", number = 10, returnResamp = "all")
+
+# Train model with cross-validation
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = train.data, method = "lda", trControl = ctrl, metric = "Accuracy")
+
+# Print model results
+print(model$finalModel)
 
 accuracies <- model$resample$Accuracy
-accuracies
-
-# Plot the accuracies
-plot(x = 1:length(accuracies), y = accuracies, type = "o",
-     xlab = "Iteration", ylab = "Accuracy", main = "Model Accuracy")
-
-# Add a horizontal line for the mean accuracy
-abline(h = mean(accuracies), col = "red", lty = 2)
-
 
 # Create a bar chart of the accuracies
 barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
@@ -318,170 +404,336 @@ cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
 
 ```
 
-When plotting the accuracy of the model over each cross-validation fold, we see that the accuracy does not change significantly. This means that the model has not been over fit to any specific fold. The mean accuracy over all the folds was 99.5%.
+**Comment:** When plotting the accuracy of the model over each cross-validation fold, we see that the accuracy does not change significantly. This means that the model has not been over fit to any specific fold. The mean accuracy over all the folds was 99.8%.
 
-```{r}
+#### ROC Curve
 
-actual_outcomes <- test.data$Blue_Tarp
-confusion_matrix <- confusionMatrix(predicted_outcomes, actual_outcomes)
-roc_prediction <- prediction(predicted_probabilities, actual_outcomes)
-roc_performance <- performance(roc_prediction, "tpr", "fpr")
+```{r, cache = TRUE, echo = TRUE}
+
+# Load the MASS library
+library(MASS)
+
+
+# Fit the LDA model using the training data
+model_training <- lda(Blue_Tarp ~ Red + Blue + Green, data = train.data)
+
+# Make predictions on the test data
+predictions_test <- predict(model_training, newdata = test.data, type = "response")
+predictions_class <- predictions_test$class
+
+# Create the confusion matrix
+Actual <- test.data$Blue_Tarp
+Predicted <- predictions_class
+table <- table(Predicted, Actual)
+
+# Print the confusion matrix
+cat("Confusion Matrix:\n\n")
+print(table)
+
+# Calculate the overall fraction of correct predictions
+accuracy <- sum(diag(table))/sum(table)
+
+# Print the accuracy
+cat("\nAccuracy:", accuracy, "\n")
+
+preds <- predict(model_training, newdata = test.data, type = "response")
+
+prediction_obj <- prediction(preds$posterior[,2], test.data$Blue_Tarp)
+
+roc_obj <- performance(prediction_obj, measure = "tpr", x.measure = "fpr")
+plot(roc_obj, main="ROC Curve for Blue Tarp Classification")
+lines(x = c(0,1), y = c(0,1), col="red")
+
 ```
 
-## LDA (Linear Discriminant Analysis)
+**Comment:** Since the ROC curve for this model is far above the diagonal line, this means the model performs much better than random guessing and is thus a useful model.
 
--   **Overall model building process:**
-    -   **Parameter tuning and model selection (if applicable)**
+#### AUC Value
 
-        There was no parameter tuning and model selection for LDA.
+```{r, cache = TRUE, echo = TRUE}
 
-    -   **Model validation**
+auc <- performance(prediction_obj, measure = "auc")
 
-    -   **describe and justify threshold selection**
+aucValue <- as.numeric(auc@y.values[1])
 
-        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+cat("AUC:", aucValue, "\n")
 
-    -   **describe and justify metrics used for model performance evaluation**
+```
 
-        -   **use ROC curves to compare models**
+**Comment:** Since the AUC of this model is 0.9884393 and is much greater than 0.5, this model performs much better than random guessing.
 
-    -   **It should be clear what features were used for each model family.**
+#### Confusion Matrix
 
-        -   **E.g., by using a formula or explicit calculation of model matrix.**
+```{r, cache = TRUE, echo = TRUE}
 
-    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+modelAccuracies <- numeric(length = 11)
+for (x in seq(0, 1, 0.1)) {
+	
+	# Convert the predictions to binary classes
+	predictions_class <- ifelse(preds$posterior[,2] > x, 1, 0)
+	
+	# Create the confusion matrix
+	
+	Actual <- test.data$Blue_Tarp
+	Predicted <- predictions_class
+	
+  cm <- table(Predicted, Actual)
+  modelAccuracies[10 * x + 1] <- sum(diag(cm))/sum(cm)
+}
 
-    -   **It should be clear how cross-validation was implemented.**
--   **For each of the 5 models,**
-    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
-    -   **describe and show results of threshold selection**
-    -   **describe and discuss model performance**
-        -   **use ROC curves and relevant metrics; how are they derived**
+plot(modelAccuracies, main = "Model Accuracies at Different Thresholds", xlab = "Threshold Value", ylab = "Accuracy")
 
-```{r}
+max_idx <- which.max(modelAccuracies)
+bestThresholdValue <- (max_idx - 1) / 10
 
-library(caret)
-library(ggplot2)
+```
 
-# Modify the data to add a new column for Blue Tarp
-data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
+**Comment:** Threshold selection was done on the model with increments of 0.1 going from 0 to 1. Threshold selection was applied to the estimated probabilities.
 
-set.seed(123)
+#### Confusion Matrix and Best Threshold Metrics
 
-# Create cross-validation folds
-folds <- createFolds(data$Blue_Tarp, k = 5)
+```{r, cache = TRUE, echo = TRUE}
 
-# Define cross-validation control
-ctrl <- trainControl(method = "cv", index = folds)
+print("Confusion matrix at best threshold value")
+cm <- table(test.data$Blue_Tarp, preds$posterior[,2] > bestThresholdValue)
+cm
+# Calculate accuracy
+accuracy <- sum(diag(cm))/sum(cm)
+# Calculate error rate
+error_rate <- 1 - accuracy
 
-# Train model with cross-validation using LDA
-model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "lda",
-               trControl = ctrl)
+# Extract the TRUE positives (TP), false positives (FP), TRUE negatives (TN), and false negatives (FN) from the confusion matrix
+TP <- cm[2,2]
+FP <- cm[1,2]
+TN <- cm[1,1]
+FN <- cm[2,1]
 
-# Print model results
-print(model)
+# Calculate the TRUE positive rate (TPR)
+TPR <- TP / (TP + FN)
 
-# Check for overfitting
-model$results
+# Calculate the false positive rate (FPR)
+FPR <- FP / (FP + TN)
 
+# Calculate precision
+precision <- TP / (TP + FP)
+
+#Putting TPR,FPR, aucValue, bestThresholdValue, precision, and accuracy into a dataframe
+
+logResults <- data.frame(
+  TPR = TPR,
+  FPR = FPR,
+  AUC = aucValue,
+  Best_Threshold_Value = bestThresholdValue,
+  Precision = precision,
+  Max_Accuracy = accuracy,
+  Mean_Accuracy = meanAccuracy
+)
+
+print(t(logResults))
 ```
 
 ## QDA (Quadratic Discriminant Analysis)
 
--   **Overall model building process:**
-    -   **Parameter tuning and model selection (if applicable)**
+#### Training and Cross Validation
 
-        There was no parameter tuning and model selection for logistic regression.
+```{r, cache = TRUE, echo = TRUE}
 
-    -   **Model validation**
-
-        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
-
-    -   **describe and justify threshold selection**
-
-        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
-
-    -   **describe and justify metrics used for model performance evaluation**
-
-        -   **use ROC curves to compare models**
-
-    -   **It should be clear what features were used for each model family.**
-
-        -   **E.g., by using a formula or explicit calculation of model matrix.**
-
-    -   **It should be clear if any pre-processing was used (e.g., scaling).**
-
-    -   **It should be clear how cross-validation was implemented.**
--   **For each of the 5 models,**
-    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
-    -   **describe and show results of threshold selection**
-    -   **describe and discuss model performance**
-        -   **use ROC curves and relevant metrics; how are they derived**
-
-```{r}
-
-library(caret)
-library(ggplot2)
-
-# Modify the data to add a new column for Blue Tarp
-data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
-
-set.seed(123)
-
-# Create cross-validation folds
-folds <- createFolds(data$Blue_Tarp, k = 5)
 
 # Define cross-validation control
-ctrl <- trainControl(method = "cv", index = folds)
+ctrl <- trainControl(method = "cv", number = 10, returnResamp = "all")
 
-# Train model with cross-validation using LDA
-model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "qda",
-               trControl = ctrl)
+# Train model with cross-validation
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = train.data, method = "qda", trControl = ctrl, metric = "Accuracy")
 
 # Print model results
-print(model)
+print(model$finalModel)
 
-# Check for overfitting
-model$results
+accuracies <- model$resample$Accuracy
+
+# Create a bar chart of the accuracies
+barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
+
+meanAccuracy <- mean(accuracies)
+cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
+
+```
+
+#### Training and Cross-Validation
+
+```{r, cache = TRUE, echo = TRUE}
+
+#Fit a logistic regression model and do cv on it to see if it overfitting or not.
+
+#Modify the data to add a new column for Blue Tarp
+
+data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", 1, 0))
+
+#Splitting data for a training set and a holdout set
+train.index <- sample(1:nrow(data), 0.8*nrow(data), replace = FALSE)
+train.data <- data[train.index, ]
+test.data <- data[-train.index, ]
+
+#Set a seed
+set.seed(123)
+
+# Define cross-validation control
+ctrl <- trainControl(method = "cv", number = 10, returnResamp = "all")
+
+# Train model with cross-validation
+model <- train(Blue_Tarp ~ Red + Blue + Green, data = train.data, method = "qda", trControl = ctrl, metric = "Accuracy")
+
+# Print model results
+print(model$finalModel)
+
+accuracies <- model$resample$Accuracy
+
+# Create a bar chart of the accuracies
+barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
+
+meanAccuracy <- mean(accuracies)
+cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
+
+```
+
+------------------------------------------------------------------------
+
+**Comment:** When plotting the accuracy of the model over each cross-validation fold, we see that the accuracy does not change significantly. This means that the model has not been over fit to any specific fold. The mean accuracy over all the folds was 99.5%.
+
+#### ROC Curve
+
+```{r, cache = TRUE, echo = TRUE}
+
+# Load the MASS library
+library(MASS)
+
+
+# Fit the LDA model using the training data
+model_training <- qda(Blue_Tarp ~ Red + Blue + Green, data = train.data)
+
+# Make predictions on the test data
+predictions_test <- predict(model_training, newdata = test.data, type = "response")
+predictions_class <- predictions_test$class
+
+# Create the confusion matrix
+Actual <- test.data$Blue_Tarp
+Predicted <- predictions_class
+table <- table(Predicted, Actual)
+
+# Print the confusion matrix
+cat("Confusion Matrix:\n\n")
+print(table)
+
+# Calculate the overall fraction of correct predictions
+accuracy <- sum(diag(table))/sum(table)
+
+# Print the accuracy
+cat("\nAccuracy:", accuracy, "\n")
+
+preds <- predict(model_training, newdata = test.data, type = "response")
+
+prediction_obj <- prediction(preds$posterior[,2], test.data$Blue_Tarp)
+
+roc_obj <- performance(prediction_obj, measure = "tpr", x.measure = "fpr")
+plot(roc_obj, main="ROC Curve for Blue Tarp Classification")
+lines(x = c(0,1), y = c(0,1), col="red")
+```
+
+**Comment:** Since the ROC curve for this model is far above the diagonal line, this means the model performs much better than random guessing and is thus a useful model.
+
+#### AUC Value
+
+```{r, cache = TRUE, echo = TRUE}
+
+auc <- performance(prediction_obj, measure = "auc")
+
+aucValue <- as.numeric(auc@y.values[1])
+
+cat("AUC:", aucValue, "\n")
+
+```
+
+**Comment:** Since the AUC of this model is 0.999 and is much greater than 0.5, this model performs much better than random guessing.
+
+#### Confusion Matrix
+
+```{r, cache = TRUE, echo = TRUE}
+
+modelAccuracies <- numeric(length = 11)
+
+for (i in 1:11) {
+  x <- (i - 1) / 10
+  cm <- table(test.data$Blue_Tarp, preds$posterior[,2] > x)
+  modelAccuracies[i] <- sum(diag(cm))/sum(cm)
+}
+
+plot(modelAccuracies, main = "Model Accuracies at Different Thresholds", xlab = "Threshold Value", ylab = "Accuracy")
+
+max_idx <- which.max(modelAccuracies)
+bestThresholdValue <- (max_idx - 1) / 10
+```
+
+**Comment:** Threshold selection was done on the model with increments of 0.1 going from 0 to 1. The highest accuracy was obtained with a threshold value of 0.2.
+
+#### Confusion Matrix and Best Threshold Metrics
+
+```{r, cache = TRUE, echo = TRUE}
+
+print("Confusion matrix at best threshold value")
+cm <- table(test.data$Blue_Tarp, preds$posterior[,2] > bestThresholdValue)
+cm
+# Calculate accuracy
+accuracy <- sum(diag(cm))/sum(cm)
+# Calculate error rate
+error_rate <- 1 - accuracy
+
+# Print accuracy and error rate
+cat("\n Accuracy: ", accuracy, "\n")
+cat("Error rate: ", round(error_rate, 10), "\n")
+
+# Extract the TRUE positives (TP), false positives (FP), TRUE negatives (TN), and false negatives (FN) from the confusion matrix
+TP <- cm[2,2]
+FP <- cm[1,2]
+TN <- cm[1,1]
+FN <- cm[2,1]
+
+# Calculate the TRUE positive rate (TPR)
+TPR <- TP / (TP + FN)
+
+# Calculate the false positive rate (FPR)
+FPR <- FP / (FP + TN)
+
+# Calculate precision
+precision <- TP / (TP + FP)
+
+# Print the precision
+cat("Precision:", precision, "\n")
+
+# Print the TPR and FPR
+cat("TRUE Positive Rate (TPR):", TPR, "\n")
+cat("False Positive Rate (FPR):", FPR, "\n")
+
+
+#Putting TPR,FPR, aucValue, bestThresholdValue, precision, and accuracy into a dataframe
+
+logResults <- data.frame(
+  TPR = TPR,
+  FPR = FPR,
+  AUC = aucValue,
+  Best_Threshold_Value = bestThresholdValue,
+  Precision = precision,
+  Max_Accuracy = accuracy,
+  Mean_Accuracy = meanAccuracy
+)
+
+print(t(logResults))
+
 
 ```
 
 ## KNN (K-nearest neighbor)
 
--   **Overall model building process:**
-    -   **Parameter tuning and model selection (if applicable)**
+```{r, echo = TRUE, cache = TRUE}
 
-        There was no parameter tuning and model selection for logistic regression.
-
-    -   **Model validation**
-
-        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
-
-    -   **describe and justify threshold selection**
-
-        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
-
-    -   **describe and justify metrics used for model performance evaluation**
-
-        -   **use ROC curves to compare models**
-
-    -   **It should be clear what features were used for each model family.**
-
-        -   **E.g., by using a formula or explicit calculation of model matrix.**
-
-    -   **It should be clear if any pre-processing was used (e.g., scaling).**
-
-    -   **It should be clear how cross-validation was implemented.**
--   **For each of the 5 models,**
-    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
-    -   **describe and show results of threshold selection**
-    -   **describe and discuss model performance**
-        -   **use ROC curves and relevant metrics; how are they derived**
-
-```{r, echo = True, cache = True}
-
-library(caret)
-library(ggplot2)
 
 # Modify the data to add a new column for Blue Tarp
 data$Blue_Tarp <- as.factor(ifelse(data$Class == "Blue Tarp", "Yes", "No"))
@@ -506,93 +758,329 @@ model <- train(Blue_Tarp ~ Red + Blue + Green, data = data, method = "knn",
 ggplot(data = model$results, aes(x = k, y = Accuracy)) +
   geom_line() +
   geom_point() +
-  labs(x = "k", y = "Accuracy")
+ 
+   labs(x = "k", y = "Accuracy")
 
 
 ```
 
-## Penalized Logistic Regression (elastic net penalty)
+#### ROC Curve
 
--   **Overall model building process:**
-    -   **Parameter tuning and model selection (if applicable)**
+```{r, cache = TRUE, echo = TRUE}
+library(ROCR)
+# Make predictions on test set
+predictions <- predict(model, newdata = test.data, type = "prob")
 
-        There was no parameter tuning and model selection for logistic regression.
+# Extract predicted probabilities for class "Yes" (i.e., Blue Tarp)
+predictions <- predictions[, "Yes"]
 
-    -   **Model validation**
+# Create a ROC curve
+roc_obj <- prediction(predictions, test.data$Blue_Tarp)
+roc_curve <- performance(roc_obj, "tpr", "fpr")
 
-        The logistic regression model had cross validation performed on it with an 80% training and a 20% hold out set.
+# Plot ROC curve
+plot(roc_curve, main = "ROC Curve", colorize = TRUE, print.cutoffs.at = seq(0, 1, 0.1),
+     text.adj = c(-0.2, 1.7))
+abline(a = 0, b = 1, lty = 2)
 
-    -   **describe and justify threshold selection**
+```
 
-        -   **It should be clear how the threshold was applied (e.g., to the estimated probabilities or logit of the probabilities).**
+**Comment:** Since the ROC curve for this model is far above the diagonal line, this means the model performs much better than random guessing and is thus a useful model.
 
-    -   **describe and justify metrics used for model performance evaluation**
+#### AUC Value
 
-        -   **use ROC curves to compare models**
+```{r, cache = TRUE, echo = TRUE}
 
-    -   **It should be clear what features were used for each model family.**
+auc <- performance(roc_obj, measure = "auc")
 
-        -   **E.g., by using a formula or explicit calculation of model matrix.**
+aucValue <- as.numeric(auc@y.values[1])
 
-    -   **It should be clear if any pre-processing was used (e.g., scaling).**
+cat("AUC:", aucValue, "\n")
 
-    -   **It should be clear how cross-validation was implemented.**
--   **For each of the 5 models,**
-    -   **describe and show parameter tuning and discuss results (use tables and/or plots)**
-    -   **describe and show results of threshold selection**
-    -   **describe and discuss model performance**
-        -   **use ROC curves and relevant metrics; how are they derived**
+```
 
-```{r}
+**Comment:** Since the AUC of this model is 0.997 and is much greater than 0.5, this model performs much better than random guessing.
+
+#### Confusion Matrix
+
+```{r, cache = TRUE, echo = TRUE}
+
+modelAccuracies <- numeric(length = 11)
+
+for (i in 1:11) {
+  x <- (i - 1) / 10
+  cm <- table(test.data$Blue_Tarp, predictions > x)
+  modelAccuracies[i] <- sum(diag(cm))/sum(cm)
+}
+
+plot(modelAccuracies, main = "Model Accuracies at Different Thresholds", xlab = "Threshold Value", ylab = "Accuracy")
+
+max_idx <- which.max(modelAccuracies)
+bestThresholdValue <- (max_idx - 1) / 10
+```
+
+**Comment:** Threshold selection was done on the model with increments of 0.1 going from 0 to 1. The highest accuracy was obtained with a threshold value of 0.3 at an accuracy of 0.995. Threshold selection was applied to the estimated probabilities.
+
+#### Confusion Matrix and Best Threshold Metrics
+
+```{r, cache = TRUE, echo = TRUE}
+
+print("Confusion matrix at best threshold value")
+cm <- table(test.data$Blue_Tarp, preds$posterior[,2] > bestThresholdValue)
+cm
+# Calculate accuracy
+accuracy <- sum(diag(cm))/sum(cm)
+# Calculate error rate
+error_rate <- 1 - accuracy
+
+# Print accuracy and error rate
+cat("\n Accuracy: ", accuracy, "\n")
+cat("Error rate: ", round(error_rate, 10), "\n")
+
+# Extract the TRUE positives (TP), false positives (FP), TRUE negatives (TN), and false negatives (FN) from the confusion matrix
+TP <- cm[2,2]
+FP <- cm[1,2]
+TN <- cm[1,1]
+FN <- cm[2,1]
+
+# Calculate the TRUE positive rate (TPR)
+TPR <- TP / (TP + FN)
+
+# Calculate the false positive rate (FPR)
+FPR <- FP / (FP + TN)
+
+# Calculate precision
+precision <- TP / (TP + FP)
+
+# Print the precision
+cat("Precision:", precision, "\n")
+
+# Print the TPR and FPR
+cat("TRUE Positive Rate (TPR):", TPR, "\n")
+cat("False Positive Rate (FPR):", FPR, "\n")
+
+
+#Putting TPR,FPR, aucValue, bestThresholdValue, precision, and accuracy into a dataframe
+
+logResults1 <- data.frame(
+  TPR = TPR,
+  FPR = FPR,
+  AUC = aucValue,
+  Best_Threshold_Value = bestThresholdValue,
+  Precision = precision,
+  Max_Accuracy = accuracy,
+  Mean_Accuracy = meanAccuracy
+)
+
+print(t(logResults1))
+
+```
+
+## Penalized Logistic Regression Lasso Regression
+
+### Training and Cross-Validation
+
+```{r, cache = TRUE, echo = TRUE}
 
 #Define the grid of tuning parameters to explore
-library(glmnet)
 lambdas <- c(0.1, 1, 10)  # note logarithmic scale
 
 tuneGrid <- expand.grid(alpha=1, # select L1 regularization (Lasso)
                         lambda=lambdas)
 
-trControl <- caret::trainControl(method='cv', number=10, allowParallel=TRUE)
+trControl <- caret::trainControl(method = "cv", number = 10, returnResamp = "all", allowParallel=TRUE)
 
 modelFit <- train(Blue_Tarp ~ ., 
                   data= data, 
                   method='glmnet', 
                   trControl=trControl, 
-                  tuneGrid=tuneGrid)
+                  tuneGrid=tuneGrid,
+                  metric = "Accuracy")
 
 modelFit
+
+# Print model results
+print(model$finalModel)
+
+accuracies <- model$resample$Accuracy
+
+# Create a bar chart of the accuracies
+barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
+
+meanAccuracy <- mean(accuracies)
+cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
+
 ```
 
-Ridge regression
+#### ROC Curve
 
-```{r}
+```{r, cache = TRUE, echo = TRUE}
 
-library(glmnet)
+
+# Make predictions on test set
+predictions <- predict(modelFit, newdata = test.data, type = "prob")
+
+# Extract predicted probabilities for class "Yes" (i.e., Blue Tarp)
+predictions <- predictions[, "Yes"]
+
+# Create a ROC curve
+roc_obj <- prediction(predictions, test.data$Blue_Tarp)
+roc_curve <- performance(roc_obj, "tpr", "fpr")
+
+# Plot ROC curve
+plot(roc_curve, main = "ROC Curve", colorize = TRUE, print.cutoffs.at = seq(0, 1, 0.1),
+     text.adj = c(-0.2, 1.7))
+abline(a = 0, b = 1, lty = 2)
+```
+
+#### AUC Value
+
+```{r, cache = TRUE, echo = TRUE}
+
+auc <- performance(roc_obj, measure = "auc")
+
+aucValue <- as.numeric(auc@y.values[1])
+
+cat("AUC:", aucValue, "\n")
+```
+
+#### Confusion Matrix
+
+```{r, cache = TRUE, echo = TRUE}
+
+modelAccuracies <- numeric(length = 11)
+
+for (i in 1:11) {
+  x <- (i - 1) / 10
+  cm <- table(test.data$Blue_Tarp, predictions > x)
+  modelAccuracies[i] <- sum(diag(cm))/sum(cm)
+}
+
+plot(modelAccuracies, main = "Model Accuracies at Different Thresholds", xlab = "Threshold Value", ylab = "Accuracy")
+
+max_idx <- which.max(modelAccuracies)
+bestThresholdValue <- (max_idx - 1) / 10
+```
+
+## Ridge Regression
+
+```{r, cache = TRUE, echo = TRUE}
+
 lambdas <- c(0.1, 1, 10)  # note logarithmic scale
 
 tuneGrid <- expand.grid(alpha=0, # select L2 regularization (Ridge)
                         lambda=lambdas)
 
-trControl <- caret::trainControl(method='cv', number=10, allowParallel=TRUE)
+trControl <- caret::trainControl(method = "cv", number = 10, returnResamp = "all", allowParallel=TRUE)
 
 modelFit <- train(Blue_Tarp ~ ., 
                   data= data, 
                   method='glmnet', 
                   trControl=trControl, 
-                  tuneGrid=tuneGrid)
+                  tuneGrid=tuneGrid,
+                  metric = "Accuracy")
 modelFit
 ```
 
-```{r}
+#### 
 
-showTuningResults <- function(model) {
-  results = model$results
-  bestResults = results %>% slice_min(RMSE, n=1)
-  
-  ggplot(model) + 
-    geom_ribbon(data=results, aes(x=lambda, ymin=RMSE-RMSESD, ymax=RMSE+RMSESD), color='grey', alpha=.2) +
-    geom_point(data=bestResults, color='red', size=2.5) +
-    scale_x_log10()
-}
-showTuningResults(modelFit)
+```{r, cache = TRUE, echo = TRUE}
+
+# Print model results
+print(model$finalModel)
+
+accuracies <- model$resample$Accuracy
+
+# Create a bar chart of the accuracies
+barplot(accuracies, main = "Model Accuracies", xlab = "Resampling Iteration", ylab = "Accuracy")
+
+meanAccuracy <- mean(accuracies)
+cat("Mean accuracy over all cross-validation folds:", meanAccuracy, "\n")
+
 ```
+
+------------------------------------------------------------------------
+
+**Comment:** When plotting the accuracy of the model over each cross-validation fold, we see that the accuracy does not change significantly. This means that the model has not been over fit to any specific fold. The mean accuracy over all the folds was 99.5%.
+
+#### ROC Curve
+
+```{r, cache = TRUE, echo = TRUE}
+
+# Make predictions on test set
+predictions <- predict(modelFit, newdata = test.data, type = "prob")
+
+# Extract predicted probabilities for class "Yes" (i.e., Blue Tarp)
+predictions <- predictions[, "Yes"]
+
+# Create a ROC curve
+roc_obj <- prediction(predictions, test.data$Blue_Tarp)
+roc_curve <- performance(roc_obj, "tpr", "fpr")
+
+# Plot ROC curve
+plot(roc_curve, main = "ROC Curve", colorize = TRUE, print.cutoffs.at = seq(0, 1, 0.1),
+     text.adj = c(-0.2, 1.7))
+abline(a = 0, b = 1, lty = 2)
+```
+
+**Comment:** Since the ROC curve for this model is far above the diagonal line, this means the model performs much better than random guessing and is thus a useful model.
+
+#### AUC Value
+
+```{r, cache = TRUE, echo = TRUE}
+
+auc <- performance(roc_obj, measure = "auc")
+
+aucValue <- as.numeric(auc@y.values[1])
+
+cat("AUC:", aucValue, "\n")
+
+```
+
+**Comment:** Since the AUC of this model is 0.999 and is much greater than 0.5, this model performs much better than random guessing.
+
+#### Confusion Matrix
+
+```{r, cache = TRUE, echo = TRUE}
+
+modelAccuracies <- numeric(length = 11)
+
+for (i in 1:11) {
+  x <- (i - 1) / 10
+  cm <- table(test.data$Blue_Tarp, predictions > x)
+  modelAccuracies[i] <- sum(diag(cm))/sum(cm)
+}
+
+plot(modelAccuracies, main = "Model Accuracies at Different Thresholds", xlab = "Threshold Value", ylab = "Accuracy")
+
+max_idx <- which.max(modelAccuracies)
+bestThresholdValue <- (max_idx - 1) / 10
+```
+
+**Comment:** Threshold selection was done on the model with increments of 0.1 going from 0 to 1. The highest accuracy was obtained with a threshold value of 0.3 at an accuracy of 0.995. Threshold selection was applied to the estimated probabilities.
+
+## Conclusions
+
+### Conclusion 1
+
+```{r, cache = TRUE, echo = TRUE}
+print(logResults1)
+```
+
+Based on the output metrics, it can be concluded that the KNN model performed best at k = 5. The TRUE positive rate (TPR) of the model was relatively high at 0.825, indicating that the model was able to correctly identify a large proportion of positive instances. Additionally, the false positive rate (FPR) was extremely low at 0.0006, indicating that the model was able to avoid making false positive predictions.
+
+The area under the ROC curve (AUC) was also high at 0.918, indicating that the model's predictions were overall accurate and well-balanced. Furthermore, the precision of the model was high at 0.98, indicating that the model was precise in identifying positive instances.
+
+The max accuracy of the model was 0.966, which is relatively high, indicating that the model was able to achieve a high level of accuracy. Additionally, the mean accuracy of the model was even higher at 0.996, indicating that the model was able to maintain a high level of accuracy across different data sets.
+
+Overall, these output metrics suggest that the KNN model performed well at k = 5 and was able to accurately classify positive instances while minimizing false positives. Therefore, it can be concluded that the KNN model was the best model for this particular data set and problem.
+
+### Conclusion 2
+
+Some additional recommended actions that can be taken to improve results over classification methods are that convolution neural network (CNN) models can be used to identify the images with the Blue Tarps in them. This may prove more beneficial as CNNs are specifically designed for image recognition tasks and have shown exceptional performance in image classification tasks. Compared to traditional classification methods, CNNs can automatically learn the important features from images and extract the most relevant information to make accurate predictions.
+
+Moreover, when dealing with large datasets or complex images, deep learning models such as CNNs can be used to capture the underlying patterns and relationships in the data, which may be difficult to detect using traditional machine learning methods. Thus, using CNN models may prove to be more useful when identifying survivors from this data set.
+
+### Conclusion 3
+
+One reason why the models trained were able to attain such a high accuracy may have been due to the uniqueness of the Blue Tarp pixels. When analyzing the visualizations of these models, we see that the Blue Tarp class has the distribution of Blue color on the highest end as compared to the other classes. This may add to the uniqueness of the Blue Tarp class which allows the models to perform very accurately. Furthermore, we can also see from the visualizations that the Blue Tarp class pixels are the least compared to the other classes. Due to its rareness in the data set, the model learns very well what the pixels without the Blue Tarp in it look like and is thus able to dismiss them accurately leading to better model over all. This observation tells us that in this case of the Haiti disaster, it may make sense to use these types of classification models to identify where people are living because of the color of the tents they are using. However, if the tents that survivors are using are a different color, it may prove more difficult for these algorithms to identify the survivors properly.
